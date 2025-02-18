@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Response</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+            color: #333;
+        }
+        h1 {
+            margin-top: 50px;
+            font-size: 2em;
+        }
+        p {
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+        a {
+            margin-top: 30px;
+            display: inline-block;
+            text-decoration: none;
+            color: #007BFF;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI-Generated Response</h1>
+    <p id="response-container">Loading response...</p>
+    <a href="/">Go Back</a>
+
+    <script>
+        // Extract the reply from the query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const reply = urlParams.get("reply");
+
+        const responseContainer = document.getElementById("response-container");
+        responseContainer.textContent = reply || "No response was received.";
+    </script>
+</body>
+</html>

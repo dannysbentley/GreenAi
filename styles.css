@@ -1,0 +1,164 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    line-height: 1.6;
+    margin:0;
+}
+
+header {
+    background-color: #1f1f1f;
+    padding: 1rem 0;
+    text-align: center;
+}
+
+header .logo {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+main {
+    padding: 2rem;
+}
+
+#upload {
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+    border: 2px solid #333;
+    margin: 2rem auto;
+    padding: 2rem;
+    max-width: 600px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+#upload h2 {
+    margin-bottom: 1rem;
+    color: #ffffff;
+}
+
+#upload p {
+    margin-bottom: 2rem;
+    font-size: 1rem;
+    color: #bdbdbd;
+}
+
+textarea#user-description {
+    width: 100%;
+    max-width: 500px;
+    padding: 0.75rem;
+    border: 2px solid #333;
+    border-radius: 10px;
+    background-color: #1c1c1c;
+    color: #ffffff;
+    font-size: 1rem;
+    resize: none;
+    margin-bottom: 1.5rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.file-upload-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.custom-file-upload {
+    background-color: #333;
+    color: #fff;
+    border: 2px solid #444;
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 1rem;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.custom-file-upload:hover {
+    background-color: #444;
+    border-color: #555;
+}
+
+/* Hide the default file input */
+input[type="file"] {
+    display: none;
+}
+
+.file-name {
+    font-size: 1rem;
+    color: #bbb;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+}
+
+button#upload-button {
+    background-color: #333;
+    color: #ffffff;
+    font-weight: bold;
+    cursor: pointer;
+    border: 2px solid #444;
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+button#upload-button:hover {
+    background-color: #444;
+    color: #e0e0e0;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem; /* Increase the gap for better spacing */
+    margin: 2rem; /* Add margin to the grid for spacing from the edges */
+    padding: 1rem; /* Add padding inside the grid container */
+}
+
+.feature {
+    background: #1f1f1f; /* Use a dark background to match dark mode */
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    text-align: center; /* Center-align the content */
+}
+
+.feature h3 {
+    margin-bottom: 1rem;
+    color: #ffffff; /* White color for headings in dark mode */
+    font-size: 1.5rem; /* Adjust font size for better visibility */
+}
+
+.feature p {
+    margin-bottom: 1rem;
+    color: #bdbdbd; /* Light gray color for text in dark mode */
+    font-size: 1rem; /* Adjust font size for consistency */
+    line-height: 1.5; /* Improve readability with line spacing */
+}
+
+
+footer {
+    text-align: center;
+    padding: 1rem;
+    background: #1f1f1f;
+    color: #e0e0e0;
+    margin-top: 2rem;
+}

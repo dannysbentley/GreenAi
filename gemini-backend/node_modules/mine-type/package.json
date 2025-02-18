@@ -1,0 +1,43 @@
+{
+  "name": "mine-type",
+  "version": "1.0.0",
+  "description": "Nodejs服务端，根据请求地址中的文件后缀获取Content-Type",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chaingree001/mine-type.git"
+  },
+  "keywords": [
+    "Nodejs",
+    "server",
+    "suffix",
+    "content-Type"
+  ],
+  "author": "Jiang Chenggong <254756875@qq.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/chaingree001/mine-type/issues"
+  },
+  "homepage": "https://github.com/chaingree001/mine-type#readme",
+  "engines": {
+    "node": ">= 0.6"
+  },
+  "devDependencies": {
+    "deep-equal": "1.0.1",
+    "eslint": "8.32.0",
+    "eslint-config-standard": "15.0.1",
+    "eslint-plugin-import": "2.27.5",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-promise": "6.1.1",
+    "eslint-plugin-standard": "4.1.0",
+    "mocha": "10.2.0",
+    "nyc": "15.1.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lintfix": "eslint  --fix --ext .js ./",
+    "test": "mocha --reporter spec --check-leaks --bail test/",
+    "test-ci": "nyc --reporter=lcovonly --reporter=text npm test",
+    "test-cov": "nyc --reporter=html --reporter=text npm test"
+  }
+}
