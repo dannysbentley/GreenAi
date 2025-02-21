@@ -1,4 +1,26 @@
 {
+  "hosting": {
+    "public": "public",
+    "rewrites": [
+      {
+        "source": "/get-upload-url",
+        "function": "myFunction"
+      },
+      {
+        "source": "/upload-image",
+        "function": "myFunction"
+      },
+      { 
+        "source": "/process-gemini", 
+        "function": "myFunction" 
+      }
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
   "functions": [
     {
       "source": "functions",
@@ -11,19 +33,5 @@
         "*.local"
       ]
     }
-  ],
-  "hosting": {
-    "public": "public",
-    "rewrites": [
-      {
-        "source": "/upload-image",
-        "function": "myFunction"
-      }
-    ],
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
-  }
+  ]
 }

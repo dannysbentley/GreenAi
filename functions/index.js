@@ -11,9 +11,15 @@ const { PDFDocument } = require("pdf-lib");
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
+const admin = require("firebase-admin");
 
 // Import your questions array from a local file
 const questions = require("./questions.js");
+
+// Initialize Admin SDK if you haven't already
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 const app = express();
 
@@ -21,7 +27,36 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Set up multer to handle file uploads
+// ------------------------------------------------------
+// 1) NEW ENDPOINT: Generate a Signed URL for Cloud Storage
+// ------------------------------------------------------
+app.post("/get-upload-url", async (req, res) => {
+  try {
+    const { filename } = req.body;
+    if (!filename) {
+      return res.status(400).json({ error: "No filename provided." });
+    }
+
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(filename);
+
+    const [uploadUrl] = await file.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      contentType: "image/jpeg", // or your expected type
+    });
+
+    return res.json({ uploadUrl });
+  } catch (error) {
+    console.error("Error generating upload URL:", error);
+    return res.status(500).json({ error: "Failed to generate upload URL." });
+  }
+});
+
+// ------------------------------------------------------
+// 2) EXISTING MULTER SETUP (Memory Storage)
+// ------------------------------------------------------
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -37,52 +72,58 @@ const upload = multer({
   },
 });
 
-// (Optional) If you have static assets to serve within your function,
-// you can use express.static. Otherwise, Firebase Hosting will handle static files.
-// app.use(express.static(path.join(__dirname, "public")));
-app.post("/upload-image", (req, res) => {
-  upload.array("files", 10)(req, res, async (err) => {
-    if (err) {
-      console.error("Multer error:", err);
-      return res.status(400).json({ error: err.message });
+// ------------------------------------------------------
+// 3) EXISTING ENDPOINT: Inline Gemini Processing
+// ------------------------------------------------------
+// 1) Add a new route to handle Gemini processing from GCS
+app.post("/process-gemini", async (req, res) => {
+  try {
+    const { filename, description } = req.body;
+    if (!filename || !description) {
+      return res.status(400).json({ error: "Filename and description are required." });
     }
 
-    const files = req.files;
-    const userDescription = req.body.description;
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: "No files uploaded." });
-    }
+    // Reference the bucket and file
+    const bucket = admin.storage().bucket();
+    const fileRef = bucket.file(filename);
 
-    try {
-      const geminiApiKey = functions.config().gemini.api_key;
-      const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
+    // Download the file from GCS to memory
+    const [fileBuffer] = await fileRef.download();
 
-      let parts = [];
+    // If it's a PDF, split pages and base64-encode. If it's an image, just base64-encode.
+    // For example:
+    let parts = [];
 
-      for (const file of files) {
-        if (file.mimetype === "application/pdf") {
-          const pdfBuffer = file.buffer;
-          const pdfDoc = await PDFDocument.load(pdfBuffer);
-          const totalPages = pdfDoc.getPageCount();
+    if (filename.toLowerCase().endsWith(".pdf")) {
+      // Process PDF
+      const pdfDoc = await PDFDocument.load(fileBuffer);
+      const totalPages = pdfDoc.getPageCount();
 
-          for (let i = 0; i < totalPages; i++) {
-            const singlePagePdf = await PDFDocument.create();
-            const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [i]);
-            singlePagePdf.addPage(copiedPage);
+      for (let i = 0; i < totalPages; i++) {
+        const singlePagePdf = await PDFDocument.create();
+        const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [i]);
+        singlePagePdf.addPage(copiedPage);
 
-            const singlePagePdfBytes = await singlePagePdf.save();
-            const base64Data = Buffer.from(singlePagePdfBytes).toString("base64");
+        const singlePagePdfBytes = await singlePagePdf.save();
+        const base64Data = Buffer.from(singlePagePdfBytes).toString("base64");
 
-            parts.push({ inlineData: { mimeType: "application/pdf", data: base64Data } });
-          }
-        } else if (["image/jpeg", "image/png"].includes(file.mimetype)) {
-          const base64Data = file.buffer.toString("base64");
-          parts.push({ inlineData: { mimeType: file.mimetype, data: base64Data } });
-        }
+        parts.push({ inlineData: { mimeType: "application/pdf", data: base64Data } });
       }
+    } else if (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg") || filename.toLowerCase().endsWith(".png")) {
+      // Process image
+      const base64Data = fileBuffer.toString("base64");
+      // Use correct MIME type if needed
+      const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+      parts.push({ inlineData: { mimeType, data: base64Data } });
+    } else {
+      // For any other file type, you could handle or return an error
+      return res.status(400).json({ error: "Unsupported file type." });
+    }
 
-      parts.push({ text: `
-${userDescription}
+    // Add user description & questions
+    parts.push({
+      text: `
+${description}
 
 Based on the provided images or PDFs, answer the following sustainability-related questions.
 Respond to each question with 'Yes,' 'No,' or 'NA' (if not applicable or insufficient evidence).
@@ -95,25 +136,35 @@ Instructions:
 
 Questions:
 ${questions.join("\n")}
-` });
+`,
+    });
 
-      const requestBody = { contents: [{ parts }] };
-      const geminiResponse = await axios.post(geminiApiUrl, requestBody);
-      const reply =
-        geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No response generated.";
+    // 2) Call Gemini
+    const geminiApiKey = functions.config().gemini.api_key;
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
+    const requestBody = { contents: [{ parts }] };
 
-      console.log("Gemini API Response:", reply);
-      res.json({ reply });
-      await sendEmail(reply);
-    } catch (error) {
-      console.error("Error processing request:", error.message);
-      res.status(500).json({ error: "Failed to fetch response from Gemini API." });
-    }
-  });
+    const geminiResponse = await axios.post(geminiApiUrl, requestBody);
+    const reply =
+      geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "No response generated.";
+
+    console.log("Gemini API Response:", reply);
+
+    // 3) Send Email
+    await sendEmail(reply);
+
+    // 4) Return the response to the client
+    res.json({ reply });
+  } catch (error) {
+    console.error("Error processing Gemini:", error.message);
+    res.status(500).json({ error: "Failed to process file with Gemini." });
+  }
 });
 
-// Function to send email using nodemailer
+// ------------------------------------------------------
+// 4) HELPER: Send Email
+// ------------------------------------------------------
 async function sendEmail(reply) {
   try {
     const transporter = nodemailer.createTransport({
@@ -138,5 +189,7 @@ async function sendEmail(reply) {
   }
 }
 
-// Export the Express app as a Cloud Function
+// ------------------------------------------------------
+// 5) EXPORT THE EXPRESS APP
+// ------------------------------------------------------
 exports.myFunction = functions.https.onRequest(app);

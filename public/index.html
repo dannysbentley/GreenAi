@@ -58,50 +58,79 @@
       document.querySelector(".file-name").textContent = fileNames;
     });
 
-    // Handle the file upload when the button is clicked
     document.getElementById("upload-button").addEventListener("click", async () => {
       const description = document.getElementById("user-description").value.trim();
       const files = document.getElementById("file-upload").files;
       const responseContainer = document.getElementById("response-container");
 
+      // Basic validations
       if (!files.length || !description) {
         responseContainer.textContent = "Please provide both a description and at least one file.";
         return;
       }
-
-      // Check if the description begins with "dwp" (case-insensitive)
       if (!description.toLowerCase().startsWith("dwp")) {
-        responseContainer.textContent = "Submission rejected.";
+        responseContainer.textContent = "Submission rejected. Description must start with 'dwp'.";
         return;
       }
 
-      // Filter files to allow only images and PDFs
+      // Filter to images/PDFs
       const allowedFiles = Array.from(files).filter(file =>
         file.type.startsWith("image/") || file.type === "application/pdf"
       );
       if (!allowedFiles.length) {
-        responseContainer.textContent = "No valid image or PDF files selected. Please choose at least one image or PDF file.";
+        responseContainer.textContent = "No valid image or PDF files selected.";
         return;
       }
 
-      const formData = new FormData();
-      formData.append("description", description);
-      allowedFiles.forEach(file => formData.append("files", file));
-
-      responseContainer.textContent = "Processing your request...";
+      responseContainer.textContent = "Uploading files to Cloud Storage...";
 
       try {
-        // Use a relative URL so Firebase Hosting can rewrite the request to your Cloud Function
-        const response = await fetch("/upload-image", {
-          method: "POST",
-          body: formData,
-        });
+        // 1) For each file, request a signed URL and upload via PUT
+        const uploadedFilenames = [];
+        for (const file of allowedFiles) {
+          // Create a unique filename to avoid collisions
+          const uniqueName = `${Date.now()}-${file.name}`;
 
+          // Request a signed URL from your backend
+          const response = await fetch("/get-upload-url", {
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ filename: file.name }) // or a unique name
+            });
+            const { uploadUrl } = await response.json();
+
+          if (!uploadUrl) {
+            throw new Error("Failed to get signed upload URL.");
+          }
+
+          // Upload the file directly to Cloud Storage via the signed URL
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { "Content-Type": file.type },
+            body: file
+          });
+
+          // Keep track of which filenames we've uploaded
+          uploadedFilenames.push(uniqueName);
+        }
+
+        const response = await fetch("/process-gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: uniqueFilename, // The same name used during the GCS upload
+            description: "dwp my project description..."
+          })
+        });
+        
         const data = await response.json();
-        responseContainer.textContent = data.reply || "No response received.";
+        console.log("Gemini reply:", data.reply);
+
+        // For now, just show success
+        responseContainer.textContent = `Uploaded files: ${uploadedFilenames.join(", ")}`;
       } catch (error) {
-        responseContainer.textContent = "An error occurred. Please try again.";
         console.error("Error:", error);
+        responseContainer.textContent = "An error occurred while uploading. Please try again.";
       }
     });
   </script>
