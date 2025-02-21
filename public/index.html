@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini AI - Sustainability Evaluation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo">dwp | Sustainability AI</div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="upload">
+      <h2>Upload Your Project</h2>
+      <p>Describe your project & upload an image or presentation PDF for sustainability evaluation by AI.</p>
+      <form id="upload-form">
+        <textarea id="user-description" rows="5" placeholder="Provide a brief project description..."></textarea>
+        <div class="file-upload-container">
+          <label for="file-upload" class="custom-file-upload">Choose Files</label>
+          <span class="file-name">No files chosen</span>
+          <input type="file" id="file-upload" accept="image/*,application/pdf" multiple>
+        </div>
+        <button id="upload-button" type="button">Submit</button>
+      </form>
+      <div id="response-container"></div>
+    </section>
+
+    <section id="features">
+      <div class="features-grid">
+        <div class="feature">
+          <h3>Easy Upload</h3>
+          <p>Upload PDF or Image of your project design.</p>
+        </div>
+        <div class="feature">
+          <h3>AI Assessment</h3>
+          <p>Automated checklist-based sustainability reviews tailored to your projects.</p>
+        </div>
+        <div class="feature">
+          <h3>Email Report</h3>
+          <p>Generate and send reports via email.</p>
+        </div>
+      </div>
+    </section>
+    
+    <footer>
+      <p>&copy; 2024 dwp | Sustainability AI. All rights reserved.</p>
+    </footer>
+  </main>
+
+  <script>
+    // Update the displayed file names when files are selected
+    document.getElementById("file-upload").addEventListener("change", function () {
+      const fileNames = Array.from(this.files).map(file => file.name).join(", ") || "No files chosen";
+      document.querySelector(".file-name").textContent = fileNames;
+    });
+
+    // Handle the file upload when the button is clicked
+    document.getElementById("upload-button").addEventListener("click", async () => {
+      const description = document.getElementById("user-description").value.trim();
+      const files = document.getElementById("file-upload").files;
+      const responseContainer = document.getElementById("response-container");
+
+      if (!files.length || !description) {
+        responseContainer.textContent = "Please provide both a description and at least one file.";
+        return;
+      }
+
+      // Check if the description begins with "dwp" (case-insensitive)
+      if (!description.toLowerCase().startsWith("dwp")) {
+        responseContainer.textContent = "Submission rejected.";
+        return;
+      }
+
+      // Filter files to allow only images and PDFs
+      const allowedFiles = Array.from(files).filter(file =>
+        file.type.startsWith("image/") || file.type === "application/pdf"
+      );
+      if (!allowedFiles.length) {
+        responseContainer.textContent = "No valid image or PDF files selected. Please choose at least one image or PDF file.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("description", description);
+      allowedFiles.forEach(file => formData.append("files", file));
+
+      responseContainer.textContent = "Processing your request...";
+
+      try {
+        // Use a relative URL so Firebase Hosting can rewrite the request to your Cloud Function
+        const response = await fetch("/upload-image", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        responseContainer.textContent = data.reply || "No response received.";
+      } catch (error) {
+        responseContainer.textContent = "An error occurred. Please try again.";
+        console.error("Error:", error);
+      }
+    });
+  </script>
+</body>
+</html>
