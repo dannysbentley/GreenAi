@@ -87,15 +87,12 @@ app.post("/process-gemini", async (req, res) => {
     const bucket = admin.storage().bucket();
     const fileRef = bucket.file(filename);
 
-    // Download the file from GCS to memory
+    // Download the file from Cloud Storage to memory
     const [fileBuffer] = await fileRef.download();
 
-    // If it's a PDF, split pages and base64-encode. If it's an image, just base64-encode.
-    // For example:
     let parts = [];
-
+    // Process PDF files
     if (filename.toLowerCase().endsWith(".pdf")) {
-      // Process PDF
       const pdfDoc = await PDFDocument.load(fileBuffer);
       const totalPages = pdfDoc.getPageCount();
 
@@ -103,24 +100,25 @@ app.post("/process-gemini", async (req, res) => {
         const singlePagePdf = await PDFDocument.create();
         const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [i]);
         singlePagePdf.addPage(copiedPage);
-
         const singlePagePdfBytes = await singlePagePdf.save();
         const base64Data = Buffer.from(singlePagePdfBytes).toString("base64");
-
         parts.push({ inlineData: { mimeType: "application/pdf", data: base64Data } });
       }
-    } else if (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg") || filename.toLowerCase().endsWith(".png")) {
-      // Process image
+    }
+    // Process image files
+    else if (
+      filename.toLowerCase().endsWith(".jpg") ||
+      filename.toLowerCase().endsWith(".jpeg") ||
+      filename.toLowerCase().endsWith(".png")
+    ) {
       const base64Data = fileBuffer.toString("base64");
-      // Use correct MIME type if needed
       const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
       parts.push({ inlineData: { mimeType, data: base64Data } });
     } else {
-      // For any other file type, you could handle or return an error
       return res.status(400).json({ error: "Unsupported file type." });
     }
 
-    // Add user description & questions
+    // Append user description and questions to the content parts
     parts.push({
       text: `
 ${description}
@@ -136,25 +134,25 @@ Instructions:
 
 Questions:
 ${questions.join("\n")}
-`,
+`
     });
 
-    // 2) Call Gemini
-    const geminiApiKey = functions.config().gemini.api_key;
+    // Prepare the request to Gemini
+    const geminiApiKey = process.env.GEMINI_API_KEY;
     const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
     const requestBody = { contents: [{ parts }] };
 
+    // Call Gemini API using axios
     const geminiResponse = await axios.post(geminiApiUrl, requestBody);
     const reply =
       geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "No response generated.";
-
     console.log("Gemini API Response:", reply);
 
-    // 3) Send Email
+    // Send email with the response
     await sendEmail(reply);
 
-    // 4) Return the response to the client
+    // Return Gemini's reply to the client
     res.json({ reply });
   } catch (error) {
     console.error("Error processing Gemini:", error.message);
@@ -167,16 +165,16 @@ ${questions.join("\n")}
 // ------------------------------------------------------
 async function sendEmail(reply) {
   try {
+    const emailUser = process.env.GMAIL_EMAIL_USER;
+    const emailPass = process.env.GMAIL_EMAIL_PASSWORD;
+    
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: {
-        user: functions.config().gmail.email_user,
-        pass: functions.config().gmail.email_password,
-      },
+      auth: { user: emailUser, pass: emailPass },
     });
 
     const mailOptions = {
-      from: functions.config().gmail.email_user,
+      from: emailUser,
       to: "danny.b@dwp.com",
       subject: "Sustainability Review AI Response",
       text: reply,

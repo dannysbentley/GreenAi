@@ -16,13 +16,13 @@
   <main>
     <section id="upload">
       <h2>Upload Your Project</h2>
-      <p>Describe your project & upload an image or presentation PDF for sustainability evaluation by AI.</p>
+      <p>Describe your project & upload an image or PDF for sustainability evaluation by AI.</p>
       <form id="upload-form">
         <textarea id="user-description" rows="5" placeholder="Provide a brief project description..."></textarea>
         <div class="file-upload-container">
-          <label for="file-upload" class="custom-file-upload">Choose Files</label>
-          <span class="file-name">No files chosen</span>
-          <input type="file" id="file-upload" accept="image/*,application/pdf" multiple>
+          <label for="file-upload" class="custom-file-upload">Choose File</label>
+          <span class="file-name">No file chosen</span>
+          <input type="file" id="file-upload" accept="image/*,application/pdf">
         </div>
         <button id="upload-button" type="button">Submit</button>
       </form>
@@ -47,90 +47,84 @@
     </section>
     
     <footer>
-      <p>&copy; 2024 dwp | Sustainability AI. All rights reserved.</p>
+      <p>&copy; 2025 dwp | Sustainability AI. All rights reserved.</p>
     </footer>
   </main>
 
   <script>
-    // Update the displayed file names when files are selected
+    // Update displayed file name when file is selected
     document.getElementById("file-upload").addEventListener("change", function () {
-      const fileNames = Array.from(this.files).map(file => file.name).join(", ") || "No files chosen";
-      document.querySelector(".file-name").textContent = fileNames;
+      const file = this.files[0];
+      const fileName = file ? file.name : "No file chosen";
+      document.querySelector(".file-name").textContent = fileName;
     });
 
     document.getElementById("upload-button").addEventListener("click", async () => {
       const description = document.getElementById("user-description").value.trim();
-      const files = document.getElementById("file-upload").files;
+      const fileInput = document.getElementById("file-upload");
+      const file = fileInput.files[0];
       const responseContainer = document.getElementById("response-container");
 
       // Basic validations
-      if (!files.length || !description) {
-        responseContainer.textContent = "Please provide both a description and at least one file.";
+      if (!file || !description) {
+        responseContainer.textContent = "Please provide both a description and one file.";
         return;
       }
       if (!description.toLowerCase().startsWith("dwp")) {
         responseContainer.textContent = "Submission rejected. Description must start with 'dwp'.";
         return;
       }
-
-      // Filter to images/PDFs
-      const allowedFiles = Array.from(files).filter(file =>
-        file.type.startsWith("image/") || file.type === "application/pdf"
-      );
-      if (!allowedFiles.length) {
-        responseContainer.textContent = "No valid image or PDF files selected.";
+      if (!(file.type.startsWith("image/") || file.type === "application/pdf")) {
+        responseContainer.textContent = "Please choose a valid image or PDF file.";
         return;
       }
 
-      responseContainer.textContent = "Uploading files to Cloud Storage...";
+      responseContainer.textContent = "Uploading your file to Cloud Storage...";
 
       try {
-        // 1) For each file, request a signed URL and upload via PUT
-        const uploadedFilenames = [];
-        for (const file of allowedFiles) {
-          // Create a unique filename to avoid collisions
-          const uniqueName = `${Date.now()}-${file.name}`;
+        // 1) Create a unique filename (this must be used consistently)
+        const uniqueFilename = `${Date.now()}-${file.name}`;
 
-          // Request a signed URL from your backend
-          const response = await fetch("/get-upload-url", {
-            method: "POST", 
-            headers: { "Content-Type": "application/json" }, 
-            body: JSON.stringify({ filename: file.name }) // or a unique name
-            });
-            const { uploadUrl } = await response.json();
-
-          if (!uploadUrl) {
-            throw new Error("Failed to get signed upload URL.");
-          }
-
-          // Upload the file directly to Cloud Storage via the signed URL
-          await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: { "Content-Type": file.type },
-            body: file
-          });
-
-          // Keep track of which filenames we've uploaded
-          uploadedFilenames.push(uniqueName);
+        // 2) Request a signed URL from your backend
+        const urlRes = await fetch("/get-upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: uniqueFilename })
+        });
+        const urlData = await urlRes.json();
+        if (!urlData.uploadUrl) {
+          throw new Error("Failed to obtain a signed URL.");
         }
+        const uploadUrl = urlData.uploadUrl;
 
-        const response = await fetch("/process-gemini", {
+        // 3) Upload the file via PUT to the signed URL
+        await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file
+        });
+
+        responseContainer.textContent = "File uploaded. Processing with AI...";
+
+        // 4) Call /process-gemini with the same unique filename and description
+        const geminiRes = await fetch("/process-gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            filename: uniqueFilename, // The same name used during the GCS upload
-            description: "dwp my project description..."
+            filename: uniqueFilename,  // Use the unique filename here!
+            description
           })
         });
-        
-        const data = await response.json();
-        console.log("Gemini reply:", data.reply);
+        const geminiData = await geminiRes.json();
 
-        // For now, just show success
-        responseContainer.textContent = `Uploaded files: ${uploadedFilenames.join(", ")}`;
+        if (geminiData.error) {
+          responseContainer.textContent = `Error: ${geminiData.error}`;
+        } else {
+          responseContainer.textContent = geminiData.reply || "No response received.";
+        }
       } catch (error) {
         console.error("Error:", error);
-        responseContainer.textContent = "An error occurred while uploading. Please try again.";
+        responseContainer.textContent = "An error occurred. Please try again.";
       }
     });
   </script>
